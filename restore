@@ -1,0 +1,61 @@
+#!/bin/bash
+
+fileName=$1
+
+if [ -z $fileName ]
+then
+	echo 'No file provided!'
+
+elif [ -f $HOME""/deleted/""$fileName ]
+then
+	# Extract the file path. IT MUST COME FROM THE DELETE DIRECTORY. $HOME/deleted
+	# The directory paths, full path as well as fileName
+	
+	# Check to see if file exists in target directory, prompt user to select yes or no to overwrite.
+	# If not, restore the file.
+
+
+	echo 'We are restoring the deleted file'
+	cd $HOME
+
+	original_path=$( cat .restore.info | grep $fileName | cut -d":" -f2 )
+	file_path=$HOME""/deleted/""$fileName
+
+	if [ -e $original_path ]
+	then
+		echo 'Do you want to overwrite? y/n'
+		read userInput
+
+		if [[ $userInput == 'y' || $userInput == 'Y' ]]
+		then
+			# If prompted yes, overwrite the deleted file with the one in the repository.
+		
+			mv $file_path $original_path
+			echo 'File successfully restored'
+
+			# Store the values in a temporary file and then move them to .restore.info, deleted the temporary file.
+		
+			cat .restore.info | grep -v $fileName"":""$original_path > .restores.info
+			mv .restores.info .restore.info
+
+		elif [[ $userInput != 'y' || $userInput != 'Y' ]]
+		then	
+			echo 'File will not be overwritten'
+		fi
+
+	else
+		mv $file_path $original_path
+
+		# Remove file name from the .restore.info file
+
+		cat .restore.info | grep -v $fileName"":""$original_path > .restores.info
+
+		# Store the values in a temporary file and then move them to .restore.info, delete the temporary file.
+
+		mv .restores.info .restore.info
+		echo 'File successfully restored!'
+	fi
+else 
+	echo 'This file does not exist!'
+fi
+

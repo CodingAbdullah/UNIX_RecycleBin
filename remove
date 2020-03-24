@@ -1,0 +1,368 @@
+#!/bin/bash
+
+# Checking to see if the deleted directory exists in the home path.
+
+if [ ! -d $HOME""/deleted"" ]
+then
+	mkdir $HOME""/deleted""
+fi
+
+# Follow these steps when checking a file, to make sure it is a file and not the remove script as well as if it exists.
+
+function checkFile() {
+	fileName=$1
+	file=$(basename $fileName)
+	full_path=$(readlink -f $fileName)
+
+	# Check if the file name was provided
+
+        if [ -z $fileName ]
+        then
+        	echo 'No file name provided'
+                exit 1
+	
+	# Check if a directory name was provided
+
+        elif [ -d $fileName ]
+        then
+               	echo "remove: cannot remove '${fileName}: Is a directory"
+                exit 1
+
+	# Check to see if file does not exist
+
+	elif [ ! -f $fileName ]
+	then
+		echo "remove: cannot remove '${fileName}': No such file or directory"
+		exit 1
+
+	# Check to see if user is trying to remove the remove script
+
+	elif [[ $file == 'remove' || $full_path == $HOME""/project/remove"" ]]
+	then
+		echo 'Attempting to delete remove - operation aborted'
+		exit 1
+	fi
+}
+
+function removeFile() {
+		first_argument=$1
+
+		if [[ $first_argument == '-v' ]]
+		then
+			shift
+		fi
+		
+		if [[ $# == 0 ]]
+		then
+			echo 'remove: missing operand'
+		else	
+			for i in $*
+			do
+				checkFile $i
+				fileName=$i
+
+				# Check to see if we are removing this script file
+				# If file path is from a remote directory, do the following extractions
+				# Extract file name
+				# Extract directory path
+				# Extract full path
+
+				file=$(basename $fileName)			
+				directory_path=$(dirname $fileName)
+				full_path=$(readlink -f $fileName)
+
+				cd $directory_path
+			
+				# Search for the file in question
+				inode=$( ls -i | grep $file$ | cut -d" " -f1)
+
+				# Move the file to the deleted directory.
+				mv $file $HOME/deleted/
+
+				# Move into the deleted directory.
+				cd $HOME/deleted/
+
+				# Rename the filename to the fileName_inode format.
+				mv $file $file""_""$inode
+
+				# Write the filename from the recycle bin along with the FULL path of the original file.
+				echo "$file"_"$inode:$full_path" >> $HOME/.restore.info
+
+				# Move back to the project directory
+				cd $HOME/project/
+
+				if [[ $first_argument == '-v' ]]
+				then
+
+					verboseFile $i
+				fi
+			done
+		fi
+}
+
+function infoFile(){
+
+		# Grab the first argument and check to see if it's a flag, vi or iv.
+		first_argument=$1
+		
+		# Shift arguments by 1 because you want to deal with file arguments only.
+		shift
+
+		# Iterate through the list of files and check if each one is a file.
+	
+		for i in $*
+                do
+                        echo "remove: regular file '${i}'?"
+                        read userInput
+
+	                if [[ $userInput == 'y' || $userInput == 'Y' ]]
+        	        then
+                		checkFile $i
+                        	fileName=$i
+
+                             	# Check to see if we are removing this script file
+	                        # If file path is from a remote directory, do the following extractions
+      	                        # Extract file name
+             	                # Extract directory path
+                      	        # Extract full path
+
+                                file=$(basename $fileName)
+	                        directory_path=$(dirname $fileName)
+        	                full_path=$(readlink -f $fileName)
+	
+        	                cd $directory_path
+	
+        	                # Search for the file in question
+                                inode=$( ls -i | grep $file$ | cut -d" " -f1)
+	
+                                # Move the file to the deleted directory.
+                                mv $file $HOME/deleted/
+
+                                # Move into the deleted directory.
+                               	cd $HOME/deleted/
+
+	                        # Rename the filename to the fileName_inode format.
+                                mv $file $file""_""$inode
+
+                                # Write the filename from the recycle bin along with the FULL path of the original file.
+				echo "$file"_"$inode:$full_path" >> $HOME/.restore.info
+
+	                        # Move back to the project directory
+                                cd $HOME/project/
+
+	        	        if [[ $first_argument == '-vi' || $first_argument == '-iv' ]]
+			        then
+			      		verboseFile $i
+			        fi
+                   	 fi
+               	done
+}
+
+function verboseFile() {
+	# Run through the list of files and notify that they've been removed
+
+	for i in $*
+        do
+        	echo "removed '${i}'"
+	done		
+}
+
+
+function recursiveRemoveFile() {
+	# Check the argument and check what option it is.
+	argument=$1
+
+	# Shift so as to move the arguments by 1, starting with the arguments.
+	shift
+	
+	# Store value from first argument to determine if it's a directory or not.
+	directory=$( readlink -f $1 )
+	
+	echo $directory
+
+	# Check to see if address is directory, if not display message. If it is, perform the recursive deletion operation
+
+	if [ ! -d $directory ]
+	then
+
+        	echo 'Directory not provided!'
+
+	# Check to see if the existing directory path is empty. If so, delete it.
+	else
+        	if [[ $( ls $directory | wc -l ) == 0 ]]
+        	then
+                	rmdir $directory
+
+        	# If directory path is not empty find the list of all the subdirectories and files using find.
+
+       	 	else
+                	findList=$( find $directory )
+
+        	# For each path within the find, delete those that are files and make sure all the subdirectories are empty.
+
+                	for i in $findList
+                	do
+                        	if [[ -f $i ]]
+                        	then
+                                	echo $i
+					# Check to see what option the user has requested. Based on that, perform the following remove actions.
+					if [ $argument == '-ivr'] || [ $argument == '-irv' ] || [ $argument == '-rvi' ] || [ $argument ==  '-riv'] || [ $argument == '-vir' ] || [ $argument == '-vri' ]
+        				then	
+						recursiveInfoFile $i
+						verboseFile $i
+					
+					# Recursive removal with notification prior to deletion
+					elif [[ $argument == '-ri' || $argument == '-ir' ]]
+					then	
+						recursiveInfoFile $i
+
+					# Recursive removal with notification of successful deletion
+					elif [[ $argument == '-rv' || $argument == '-vr' ]]
+					then	
+						recursiveFileRemoval $i
+						verboseFile $i
+					
+					# Recursive remove without any notifications
+					elif [ $argument == '-r' ]
+					then
+						recursiveFileRemoval $i
+					fi
+      				fi
+                	done
+
+        	# Subdirectories (if there are any) in the main directory path empty to be removed following a second iteration. Also, there should be no more files as they were all deleted.
+        	######### Second Loop ########
+        	# We are now deleting those addresses that are directories within the directory to be deleted. They are all empty as the files were deleted in the preivous loop.
+		# Make an array to store those paths which are directories only
+		# Count will keep track of deletions
+
+			arr=()
+
+                	for j in $findList
+                	do
+                        	if [[ -d $j ]] # Only add those paths that are directories
+                        	then
+					arr+=("$j") # Populate array with those paths that are subdirectories (and the directory itself). Access the array at the latest index using array[@].
+                        	fi
+                	done
+			
+			count=${#arr[@]} # Store the count of the number of directory paths to be deleted.
+
+			while [ $count != 0 ] # This is an infinite loop and will continue running until the directory list has a length of 0. This is to check for sub-directories.
+			do
+				for i in ${arr[@]} # Iterate through the array and remove those paths which are empty, repeat process
+				do
+					if [ -d $i ] # Check to see if directory path exists
+					then
+						if [ $( ls $i | wc -l) == 0 ] # If directory (or subdirectories) is empty remove directory.
+						then
+							rmdir $i # Remove the empty directory
+							count=$(( count - 1 )) # Upon removal, reduce the number of directories left to be deleted.
+						fi
+					fi
+				done
+			done
+        	fi
+	fi
+}
+
+# Concise operations to recursive perform file removals from directories
+
+function recursiveFileRemoval() {
+
+	fileName=$1 # Collect the full file path from the first argument
+ 	file=$(basename $fileName) # Retrieve filename
+ 	directory_path=$(dirname $fileName) # Retrieve the directory path
+ 	full_path=$(readlink -f $fileName) # Retain the full file path
+
+
+	cd $directory_path
+
+	# Retrieve the inode value for the file to be removed
+	inode=$( ls -i | grep $file$ | cut -d" " -f1 )
+
+	# Move the file to the deleted repository
+        mv $file $HOME/deleted/
+
+	# Move into deleted repository
+        cd $HOME/deleted/
+
+	# Move the file to the one with filename_inode
+        mv $file $file""_""$inode
+
+	# Write the value in the .restore.info file
+        echo "$file"_"$inode:$full_path" >> $HOME/.restore.info
+
+}
+
+function recursiveInfoFile() {
+
+	# Prompt the user to delete the file in question.
+
+        echo "remove: regular file '${1}'?"
+        read userInput
+	
+	# If user agrees, continue on with the deletion process
+
+        if [[ $userInput == 'y' || $userInput == 'Y' ]]
+        then
+
+                recursiveFileRemoval $1
+        fi
+}
+
+# GET OPTS
+function optFunc() {
+	info=false
+	verbose=false
+	recursive=false
+
+	if [[ $1 == "-"* ]]
+	then
+
+		while getopts :i:v:r opt
+		do
+  			case $opt in
+        			i) info=true;;
+				v) verbose=true;;
+				r) recursive=true;;
+				*) echo Bad Option - $OPTARG
+           				exit 1;;
+   			esac
+		done
+	else
+	      	removeFile $*
+      	fi	       
+}
+
+function Func() {
+	
+	# Check to see if recursion was selected
+	
+	if [ $recursive == true ]
+	then
+		recursiveRemoveFile $*
+	
+	elif [ $info == true ] && [ $verbose == true ]
+	then
+		infoFile $*
+
+	# Check to see if the info option was selected
+
+	elif $info   
+	then
+		infoFile $*
+
+	# Check to see if the verbose option was selected
+
+	elif $verbose
+	then
+		removeFile $*
+	fi
+}
+
+
+# Main function right here call the optFunc() and then work your way through the main Func()
+
+optFunc $*
+Func $*
